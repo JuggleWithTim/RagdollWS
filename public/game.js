@@ -67,48 +67,37 @@ socket.on('sim_state', (state) => {
   simState = state;
 });
 
+function drawRectLimb(ctx, part, width, height, color="#444") {
+  ctx.save();
+  ctx.translate(part.x, part.y);
+  ctx.rotate(part.angle || 0);
+  ctx.fillStyle = color;
+  ctx.fillRect(-width / 2, -height / 2, width, height);
+  ctx.restore();
+}
+
 function drawStickmanParts(ctx, ragdoll, name, headColor='#ffe0b2', hp=100) {
   ctx.save();
 
   let h = ragdoll.head, b = ragdoll.body, la = ragdoll.leftArm, ra = ragdoll.rightArm, ll = ragdoll.leftLeg, rl = ragdoll.rightLeg;
 
-  ctx.lineWidth = 6;
-  ctx.strokeStyle = "#444";
+  // Draw body parts as rectangles matching physics
+  drawRectLimb(ctx, la, 40, 15);
+  drawRectLimb(ctx, ra, 40, 15);
+  drawRectLimb(ctx, b, 20, 50);
+  drawRectLimb(ctx, ll, 20, 40);
+  drawRectLimb(ctx, rl, 20, 40);
 
-  // Draw arms
-  ctx.beginPath();
-  ctx.moveTo(b.x, b.y);
-  ctx.lineTo(la.x, la.y);
-  ctx.stroke();
-  ctx.beginPath();
-  ctx.moveTo(b.x, b.y);
-  ctx.lineTo(ra.x, ra.y);
-  ctx.stroke();
-
-  // Draw body (from head to torso)
-  ctx.beginPath();
-  ctx.moveTo(h.x, h.y);
-  ctx.lineTo(b.x, b.y);
-  ctx.stroke();
-
-  // Draw legs
-  ctx.beginPath();
-  ctx.moveTo(b.x, b.y);
-  ctx.lineTo(ll.x, ll.y);
-  ctx.stroke();
-  ctx.beginPath();
-  ctx.moveTo(b.x, b.y);
-  ctx.lineTo(rl.x, rl.y);
-  ctx.stroke();
-
-  // Draw the head
+  // Draw the head as a circle (matches physics)
   ctx.beginPath();
   ctx.arc(h.x, h.y, 20, 0, Math.PI * 2);
   ctx.fillStyle = headColor;
   ctx.fill();
+  ctx.strokeStyle = "#444";
+  ctx.lineWidth = 6;
   ctx.stroke();
 
-  // Draw player name and HP
+  // Draw player name and HP above head
   ctx.font = '14px sans-serif';
   ctx.fillStyle = "#222";
   ctx.textAlign = 'center';
@@ -169,4 +158,3 @@ window.addEventListener('keyup', (e) => {
     if (e.key === 'd') { if (controls.right) {controls.right = false; changed = true;} }
     if (changed) sendControls();
 });
-
