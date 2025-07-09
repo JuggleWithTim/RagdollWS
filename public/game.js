@@ -7,6 +7,9 @@ let gameState = 'waiting';
 let allPlayers = {};
 let simState = {};
 let hpState = {};
+// --- BEGIN BLOOD PARTICLE SUPPORT ---
+let bloodParticles = [];
+// --- END BLOOD PARTICLE SUPPORT ---
 
 document.getElementById('join-btn').onclick = () => {
   const username = document.getElementById('username').value;
@@ -67,6 +70,23 @@ socket.on('sim_state', (state) => {
   simState = state;
 });
 
+// --- LISTEN FOR BLOOD PARTICLE EVENTS ---
+socket.on('blood_particle', ({ x, y }) => {
+  const count = 8 + Math.floor(Math.random() * 6);
+  for (let i = 0; i < count; ++i) {
+    const angle = Math.random() * Math.PI * 2;
+    const speed = 2 + Math.random() * 2.5;
+    bloodParticles.push({
+      x, y,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed,
+      alpha: 1,
+      life: 0,
+      maxLife: 500 + Math.random() * 400
+    });
+  }
+});
+
 function drawRectLimb(ctx, part, width, height, color="#444") {
   ctx.save();
   ctx.translate(part.x, part.y);
@@ -81,14 +101,12 @@ function drawStickmanParts(ctx, ragdoll, name, headColor='#ffe0b2', hp=100) {
 
   let h = ragdoll.head, b = ragdoll.body, la = ragdoll.leftArm, ra = ragdoll.rightArm, ll = ragdoll.leftLeg, rl = ragdoll.rightLeg;
 
-  // Draw body parts as rectangles matching physics
   drawRectLimb(ctx, la, 40, 15);
   drawRectLimb(ctx, ra, 40, 15);
   drawRectLimb(ctx, b, 20, 50);
   drawRectLimb(ctx, ll, 20, 40);
   drawRectLimb(ctx, rl, 20, 40);
 
-  // Draw the head as a circle (matches physics)
   ctx.beginPath();
   ctx.arc(h.x, h.y, 20, 0, Math.PI * 2);
   ctx.fillStyle = headColor;
@@ -97,7 +115,6 @@ function drawStickmanParts(ctx, ragdoll, name, headColor='#ffe0b2', hp=100) {
   ctx.lineWidth = 6;
   ctx.stroke();
 
-  // Draw player name and HP above head
   ctx.font = '14px sans-serif';
   ctx.fillStyle = "#222";
   ctx.textAlign = 'center';
@@ -107,6 +124,29 @@ function drawStickmanParts(ctx, ragdoll, name, headColor='#ffe0b2', hp=100) {
 
 function drawGame() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  // --- DRAW BLOOD PARTICLES ---
+  for (let p of bloodParticles) {
+  ctx.save();
+    ctx.globalAlpha = Math.max(0, p.alpha);
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, 5 + Math.random()*3, 0, Math.PI*2);
+    ctx.fillStyle = "#a00";
+    ctx.shadowColor = "#f55";
+    ctx.shadowBlur = 6;
+    ctx.fill();
+  ctx.restore();
+
+    p.x += p.vx;
+    p.y += p.vy;
+    p.vy += 0.15;
+    p.vx *= 0.95;
+    p.vy *= 0.98;
+
+    p.life += 33;
+    p.alpha = 1 - (p.life / p.maxLife);
+  }
+  bloodParticles = bloodParticles.filter(p => p.life < p.maxLife && p.alpha > 0.05);
 
   for (let id in simState) {
     let ragdoll = simState[id];
@@ -158,3 +198,4 @@ window.addEventListener('keyup', (e) => {
     if (e.key === 'd') { if (controls.right) {controls.right = false; changed = true;} }
     if (changed) sendControls();
 });
+
