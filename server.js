@@ -17,8 +17,8 @@ let roundInterval = null;
 
 let engine = Matter.Engine.create();
 engine.world.gravity.y = 0.1;
-const arenaWidth = 1280;
-const arenaHeight = 720;
+const arenaWidth = 1920;
+const arenaHeight = 1280;
 
 let stickmen = {};
 let playerInputs = {};
@@ -277,14 +277,20 @@ io.on('connection', (socket) => {
         };
         broadcastPlayerList();
         io.emit('can_start', Object.keys(players).length >= minPlayers);
-        if (Object.keys(players).length >= minPlayers && gameState === 'waiting') {
-            startCountdown();
-        }
+        // --- REMOVED AUTO-COUNTDOWN START HERE ---
     });
 
     socket.on('input', (controls) => {
         playerInputs[socket.id] = controls;
     });
+
+    // --- BEGIN MANUAL START HANDLING ---
+    socket.on('start_game', () => {
+        if (gameState === 'waiting' && Object.keys(players).length >= minPlayers) {
+            startCountdown();
+        }
+    });
+    // --- END MANUAL START HANDLING ---
 
     socket.on('disconnect', () => {
         delete players[socket.id];
