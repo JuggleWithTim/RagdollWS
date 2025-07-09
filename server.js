@@ -10,6 +10,7 @@ const io = new Server(server);
 app.use(express.static('public'));
 
 let players = {};
+let spectators = {};
 let minPlayers = 2;
 let gameState = 'waiting'; // waiting | countdown | running | ended
 let countdown = 0;
@@ -125,7 +126,11 @@ function broadcastPlayerList() {
         id: p.id,
         username: p.username,
     }));
-    io.emit('player_list', playerList);
+    const spectatorList = Object.values(spectators).map(p => ({
+        id: p.id,
+        username: p.username,
+    }));
+    io.emit('player_list', { players: playerList, spectators: spectatorList });
 }
 
 function startCountdown() {
@@ -172,9 +177,14 @@ function startGame() {
 }
 
 function resetToLobby() {
+    // Move spectators to players
+    for (let id in spectators) {
+        players[id] = spectators[id];
+    }
+    spectators = {};
     gameState = 'waiting';
     io.emit('game_state', { state: 'waiting' });
-    broadcastPlayerList();
+        broadcastPlayerList();
 }
 
 function applyDamage(playerId, dmg) {
@@ -186,7 +196,7 @@ function applyDamage(playerId, dmg) {
     if (playerHP[playerId] === 0) {
         if (players[playerId]) players[playerId].eliminated = true;
         checkForWinner();
-    }
+        }
 }
 
 function checkForWinner() {
@@ -220,11 +230,11 @@ function doBounce(bodyA, bodyB) {
   Matter.Body.setVelocity(bodyA, {
     x: bodyA.velocity.x - (dx / dist) * speed,
     y: bodyA.velocity.y - (dy / dist) * speed
-  });
+    });
   Matter.Body.setVelocity(bodyB, {
     x: bodyB.velocity.x + (dx / dist) * speed,
     y: bodyB.velocity.y + (dy / dist) * speed
-  });
+});
 
   const rotationFactor = 0.1;
   Matter.Body.setAngularVelocity(bodyA, bodyA.angularVelocity + (Math.random() - 0.5) * rotationFactor);
@@ -268,10 +278,19 @@ Matter.Events.on(engine, 'collisionStart', event => {
 io.on('connection', (socket) => {
     socket.on('join', (username) => {
         if (!username || typeof username !== 'string') return;
-        players[socket.id] = {
-            id: socket.id,
-            username: username.substring(0, 16),
-        };
+        username = username.substring(0, 16);
+
+        if (gameState === 'waiting') {
+            players[socket.id] = {
+                id: socket.id,
+                username,
+                };
+        } else {
+            spectators[socket.id] = {
+                id: socket.id,
+                username,
+            };
+    }
         broadcastPlayerList();
         io.emit('can_start', Object.keys(players).length >= minPlayers);
 
@@ -286,13 +305,16 @@ io.on('connection', (socket) => {
     socket.on('input', (controls) => {
         playerInputs[socket.id] = controls;
     });
+
     socket.on('start_game', () => {
         if (gameState === 'waiting' && Object.keys(players).length >= minPlayers) {
             startCountdown();
         }
     });
+
     socket.on('disconnect', () => {
         delete players[socket.id];
+        delete spectators[socket.id];
         delete stickmen[socket.id];
         delete playerInputs[socket.id];
         delete playerHP[socket.id];
