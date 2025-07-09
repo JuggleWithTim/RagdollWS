@@ -12,6 +12,9 @@ let spectator = false;
 let animationFrameId = null;
 let lobbyOverlayText = '';
 
+let gotSocketId = false;
+let pendingGameState = null;
+
 function stopAnimation() {
   if (animationFrameId !== null) {
     cancelAnimationFrame(animationFrameId);
@@ -38,9 +41,7 @@ document.getElementById('join-btn').onclick = () => {
   socket.emit('join', username);
   document.getElementById('join-screen').style.display = 'none';
   canvas.style.display = '';
-  updateLobbyOverlay();
-  stopAnimation();
-  animationFrameId = requestAnimationFrame(drawLobbyOverlay);
+  // WAIT for game_state event to set spectator and overlays
 };
 
 const playerListDiv = document.createElement('div');
@@ -74,36 +75,9 @@ socket.on('player_hp', (state) => {
   hpState = state;
 });
 
-socket.on('game_state', (stateObj) => {
-  gameState = stateObj.state;
-  if (gameState === 'countdown') {
-    playerListDiv.innerHTML = playerListDiv.innerHTML.replace(/<br><b>Game starts in.*?\.*?<\/b>/g, '');
-    playerListDiv.innerHTML += `<br><b>Game starts in ${stateObj.countdown}...</b>`;
-  }
-  if (gameState === 'running' || gameState === 'countdown') {
-    allPlayers = stateObj.players || {};
-    canvas.style.display = '';
-    spectator = !(socket.id in allPlayers);
-    updateLobbyOverlay();
-    stopAnimation();
-    animationFrameId = requestAnimationFrame(drawGame);
-  }
-    if (gameState === 'waiting') {
-    spectator = false;
-    playerListDiv.innerHTML = '<b>Players:</b><br>' + Object.values(allPlayers).map(p => p.username).join('<br>');
-    canvas.style.display = '';
-    updateLobbyOverlay();
-    stopAnimation();
-    animationFrameId = requestAnimationFrame(drawLobbyOverlay);
-  } else {
-    updateLobbyOverlay();
-    }
-});
-
 socket.on('sim_state', (state) => {
   simState = state;
 });
-
 socket.on('blood_particle', ({ x, y }) => {
   const count = 8 + Math.floor(Math.random() * 6);
   for (let i = 0; i < count; ++i) {
@@ -152,6 +126,7 @@ function drawStickmanParts(ctx, ragdoll, name, headColor='#ffe0b2', hp=100) {
 }
 
 function drawGame() {
+  updateLobbyOverlay(); // Always update overlay each frame
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   for (let p of bloodParticles) {
     ctx.save();
@@ -198,7 +173,7 @@ function drawGame() {
     ctx.textAlign = "center";
     ctx.fillText(lobbyOverlayText, canvas.width/2, canvas.height/2);
     ctx.restore();
-    }
+  }
   if (
     (gameState === 'running') ||
     (spectator && (gameState === 'running' || gameState === 'countdown'))
@@ -211,16 +186,16 @@ function drawLobbyOverlay() {
   if (gameState === 'ended') return;
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   if (gameState === 'waiting' && canvas.style.display !== 'none') {
-  ctx.save();
+    ctx.save();
     ctx.globalAlpha = 0.7;
     ctx.fillStyle = "#f5f5dc";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     ctx.globalAlpha = 1.0;
     ctx.font = "44px sans-serif";
     ctx.fillStyle = "#2c2c2c";
-  ctx.textAlign = "center";
+    ctx.textAlign = "center";
     ctx.fillText(lobbyOverlayText, canvas.width/2, canvas.height/2);
-  ctx.restore();
+    ctx.restore();
     if (gameState === 'waiting') {
       animationFrameId = requestAnimationFrame(drawLobbyOverlay);
     }
@@ -268,3 +243,48 @@ window.addEventListener('keyup', (e) => {
     if (e.key === 'd') { if (controls.right) {controls.right = false; changed = true;} }
     if (changed) sendControls();
 });
+
+// ---- MODIFIED SECTION FOR SOCKET ID/STATE HANDLING ----
+
+socket.on('connect', () => {
+  gotSocketId = true;
+  if (pendingGameState) {
+    handleGameState(pendingGameState);
+    pendingGameState = null;
+  }
+});
+
+socket.on('game_state', (stateObj) => {
+  if (!gotSocketId || !socket.id) {
+    pendingGameState = stateObj;
+    return;
+  }
+  handleGameState(stateObj);
+});
+
+function handleGameState(stateObj) {
+  gameState = stateObj.state;
+  allPlayers = stateObj.players || {};
+  spectator = !(socket.id in allPlayers) && (gameState === 'running' || gameState === 'countdown');
+
+  if (gameState === 'countdown') {
+    playerListDiv.innerHTML = playerListDiv.innerHTML.replace(/<br><b>Game starts in.*?\.*?<\/b>/g, '');
+    playerListDiv.innerHTML += `<br><b>Game starts in ${stateObj.countdown}...</b>`;
+  }
+
+  stopAnimation();
+
+  if (gameState === 'running' || gameState === 'countdown') {
+    canvas.style.display = '';
+    updateLobbyOverlay();
+    animationFrameId = requestAnimationFrame(drawGame);
+  } else if (gameState === 'waiting') {
+    spectator = false;
+    playerListDiv.innerHTML = '<b>Players:</b><br>' + Object.values(allPlayers).map(p => p.username).join('<br>');
+    canvas.style.display = '';
+    updateLobbyOverlay();
+    animationFrameId = requestAnimationFrame(drawLobbyOverlay);
+  } else {
+    updateLobbyOverlay();
+  }
+}

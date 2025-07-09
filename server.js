@@ -239,12 +239,9 @@ Matter.Events.on(engine, 'collisionStart', event => {
         if (!ownerA || !ownerB || ownerA === ownerB) continue;
         let partA = bodyA.partName, partB = bodyB.partName;
 
-        // --- BEGIN BLOOD PARTICLE BROADCAST ---
         const px = (bodyA.position.x + bodyB.position.x) / 2;
         const py = (bodyA.position.y + bodyB.position.y) / 2;
         io.emit('blood_particle', { x: px, y: py });
-        // --- END BLOOD PARTICLE BROADCAST ---
-
         if (partVulnerableArea[partB] && partAttackType[partA]) {
             let area = partVulnerableArea[partB];
             let atk = partAttackType[partA];
@@ -277,21 +274,23 @@ io.on('connection', (socket) => {
         };
         broadcastPlayerList();
         io.emit('can_start', Object.keys(players).length >= minPlayers);
-        // --- REMOVED AUTO-COUNTDOWN START HERE ---
+
+        socket.emit('game_state', {
+            state: gameState,
+            players: players,
+            countdown: countdown,
+        });
+        socket.emit('player_hp', playerHP);
     });
 
     socket.on('input', (controls) => {
         playerInputs[socket.id] = controls;
     });
-
-    // --- BEGIN MANUAL START HANDLING ---
     socket.on('start_game', () => {
         if (gameState === 'waiting' && Object.keys(players).length >= minPlayers) {
             startCountdown();
         }
     });
-    // --- END MANUAL START HANDLING ---
-
     socket.on('disconnect', () => {
         delete players[socket.id];
         delete stickmen[socket.id];
