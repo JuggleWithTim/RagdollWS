@@ -75,32 +75,44 @@ function drawStickmanParts(ctx, ragdoll, name, headColor='#ffe0b2', hp=100) {
   ctx.lineWidth = 6;
   ctx.strokeStyle = "#444";
 
+  // Draw arms
   ctx.beginPath();
-  ctx.moveTo(b.x, b.y - 25); ctx.lineTo(la.x, la.y);
-  ctx.moveTo(b.x, b.y - 25); ctx.lineTo(ra.x, ra.y);
+  ctx.moveTo(b.x, b.y);
+  ctx.lineTo(la.x, la.y);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(b.x, b.y);
+  ctx.lineTo(ra.x, ra.y);
   ctx.stroke();
 
+  // Draw body (from head to torso)
   ctx.beginPath();
-  ctx.moveTo(h.x, h.y + 20); ctx.lineTo(b.x, b.y - 25);
-  ctx.lineTo(b.x, b.y + 25);
+  ctx.moveTo(h.x, h.y);
+  ctx.lineTo(b.x, b.y);
   ctx.stroke();
 
+  // Draw legs
   ctx.beginPath();
-  ctx.moveTo(b.x, b.y + 25); ctx.lineTo(ll.x, ll.y);
-  ctx.moveTo(b.x, b.y + 25); ctx.lineTo(rl.x, rl.y);
+  ctx.moveTo(b.x, b.y);
+  ctx.lineTo(ll.x, ll.y);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(b.x, b.y);
+  ctx.lineTo(rl.x, rl.y);
   ctx.stroke();
 
+  // Draw the head
   ctx.beginPath();
   ctx.arc(h.x, h.y, 20, 0, Math.PI * 2);
   ctx.fillStyle = headColor;
   ctx.fill();
   ctx.stroke();
 
+  // Draw player name and HP
   ctx.font = '14px sans-serif';
   ctx.fillStyle = "#222";
   ctx.textAlign = 'center';
   ctx.fillText(`${name} (${hp})`, h.x, h.y - 30);
-
   ctx.restore();
 }
 
@@ -157,5 +169,4 @@ window.addEventListener('keyup', (e) => {
     if (e.key === 'd') { if (controls.right) {controls.right = false; changed = true;} }
     if (changed) sendControls();
 });
-
 
