@@ -16,7 +16,7 @@ let countdown = 0;
 let roundInterval = null;
 
 let engine = Matter.Engine.create();
-engine.world.gravity.y = 0.1; // Increased gravity for better ragdoll physics
+engine.world.gravity.y = 0.1;
 const arenaWidth = 1280;
 const arenaHeight = 720;
 
@@ -48,10 +48,10 @@ const partVulnerableArea = {
 function addArenaBorders() {
     const wallOptions = { isStatic: true, restitution: 0.7, label: 'arena' };
     const borders = [
-        Matter.Bodies.rectangle(arenaWidth / 2, -10, arenaWidth, 20, wallOptions), // Top
-        Matter.Bodies.rectangle(arenaWidth / 2, arenaHeight + 10, arenaWidth, 20, wallOptions), // Bottom
-        Matter.Bodies.rectangle(-10, arenaHeight / 2, 20, arenaHeight, wallOptions), // Left
-        Matter.Bodies.rectangle(arenaWidth + 10, arenaHeight / 2, 20, arenaHeight, wallOptions), // Right
+        Matter.Bodies.rectangle(arenaWidth / 2, -10, arenaWidth, 20, wallOptions),
+        Matter.Bodies.rectangle(arenaWidth / 2, arenaHeight + 10, arenaWidth, 20, wallOptions),
+        Matter.Bodies.rectangle(-10, arenaHeight / 2, 20, arenaHeight, wallOptions),
+        Matter.Bodies.rectangle(arenaWidth + 10, arenaHeight / 2, 20, arenaHeight, wallOptions),
     ];
     borders.forEach(wall => Matter.World.add(engine.world, wall));
 }
@@ -70,20 +70,15 @@ function makeStickman(x, y, playerId) {
         {b: leftLeg, n: 'leftLeg'}, {b: rightLeg, n: 'rightLeg'}
     ].forEach(({b, n}) => { b.playerId = playerId; b.partName = n; });
 
-    // Improved constraints to create a better ragdoll effect
-    // The key is to make constraints that allow rotation but maintain relative positions
     let constraints = [
-        // Head to body constraint with stiffness and damping for better physics
         Matter.Constraint.create({
             bodyA: head,
             pointA: { x: 0, y: 20 },
             bodyB: body,
             pointB: { x: 0, y: -25 },
-            stiffness: 0.7,    // Less stiff for more natural movement
-            damping: 0.5       // Add damping to reduce oscillation
+            stiffness: 0.7,
+            damping: 0.5
         }),
-
-        // Body to limbs constraints
         Matter.Constraint.create({
             bodyA: body,
             pointA: { x: -10, y: -15 },
@@ -214,7 +209,6 @@ function ragdollFromPlayer(ownerId, partName) {
     return stickmen[ownerId]?.parts[partName];
 }
 
-// Updated doBounce function
 function doBounce(bodyA, bodyB) {
   if (!bodyA || !bodyB) return;
   const dx = bodyB.position.x - bodyA.position.x;
@@ -223,7 +217,6 @@ function doBounce(bodyA, bodyB) {
   let dist = Math.sqrt(dx*dx + dy*dy) || 1;
   const speed = 12;
 
-  // Apply velocity changes based on collision direction
   Matter.Body.setVelocity(bodyA, {
     x: bodyA.velocity.x - (dx / dist) * speed,
     y: bodyA.velocity.y - (dy / dist) * speed
@@ -233,7 +226,6 @@ function doBounce(bodyA, bodyB) {
     y: bodyB.velocity.y + (dy / dist) * speed
   });
 
-  // Add a small rotational effect for more natural ragdoll physics
   const rotationFactor = 0.1;
   Matter.Body.setAngularVelocity(bodyA, bodyA.angularVelocity + (Math.random() - 0.5) * rotationFactor);
   Matter.Body.setAngularVelocity(bodyB, bodyB.angularVelocity + (Math.random() - 0.5) * rotationFactor);
@@ -246,6 +238,12 @@ Matter.Events.on(engine, 'collisionStart', event => {
         let ownerA = bodyA.playerId, ownerB = bodyB.playerId;
         if (!ownerA || !ownerB || ownerA === ownerB) continue;
         let partA = bodyA.partName, partB = bodyB.partName;
+
+        // --- BEGIN BLOOD PARTICLE BROADCAST ---
+        const px = (bodyA.position.x + bodyB.position.x) / 2;
+        const py = (bodyA.position.y + bodyB.position.y) / 2;
+        io.emit('blood_particle', { x: px, y: py });
+        // --- END BLOOD PARTICLE BROADCAST ---
 
         if (partVulnerableArea[partB] && partAttackType[partA]) {
             let area = partVulnerableArea[partB];
@@ -315,7 +313,6 @@ setInterval(() => {
                 if (input.left) fx -= forceAmount;
                 if (input.right) fx += forceAmount;
                 if (fx !== 0 || fy !== 0) {
-                    // Apply force only to head - the rest of the body follows through constraints
                     Matter.Body.applyForce(
                         ragdoll.parts.head,
                         ragdoll.parts.head.position,
@@ -324,7 +321,6 @@ setInterval(() => {
 
                     const spinImpulse = 0.05;
                     if (input.left && !input.right) {
-                        // Add angular velocity instead of setting it
                         Matter.Body.setAngularVelocity(
                             ragdoll.parts.head,
                             ragdoll.parts.head.angularVelocity - spinImpulse
