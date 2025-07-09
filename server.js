@@ -234,7 +234,7 @@ function doBounce(bodyA, bodyB) {
   });
 
   // Add a small rotational effect for more natural ragdoll physics
-  const rotationFactor = 0.05;
+  const rotationFactor = 0.1;
   Matter.Body.setAngularVelocity(bodyA, bodyA.angularVelocity + (Math.random() - 0.5) * rotationFactor);
   Matter.Body.setAngularVelocity(bodyB, bodyB.angularVelocity + (Math.random() - 0.5) * rotationFactor);
 }
@@ -322,11 +322,18 @@ setInterval(() => {
                         { x: fx, y: fy }
                     );
 
-                    // Apply a small rotational force to enhance the ragdoll effect
+                    const spinImpulse = 0.05;
                     if (input.left && !input.right) {
-                        Matter.Body.setAngularVelocity(ragdoll.parts.head, -0.05);
+                        // Add angular velocity instead of setting it
+                        Matter.Body.setAngularVelocity(
+                            ragdoll.parts.head,
+                            ragdoll.parts.head.angularVelocity - spinImpulse
+                        );
                     } else if (input.right && !input.left) {
-                        Matter.Body.setAngularVelocity(ragdoll.parts.head, 0.05);
+                        Matter.Body.setAngularVelocity(
+                            ragdoll.parts.head,
+                            ragdoll.parts.head.angularVelocity + spinImpulse
+                        );
                     }
                 }
             }
