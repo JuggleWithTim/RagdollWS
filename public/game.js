@@ -7,15 +7,44 @@ let gameState = 'waiting';
 let allPlayers = {};
 let simState = {};
 let hpState = {};
-// --- BEGIN BLOOD PARTICLE SUPPORT ---
 let bloodParticles = [];
-// --- END BLOOD PARTICLE SUPPORT ---
+let spectator = false;
+let animationFrameId = null;
+let lobbyOverlayText = '';
+
+let gotSocketId = false;
+let pendingGameState = null;
+
+function stopAnimation() {
+  if (animationFrameId !== null) {
+    cancelAnimationFrame(animationFrameId);
+    animationFrameId = null;
+  }
+}
+
+function updateLobbyOverlay() {
+  if (spectator && (gameState === 'running' || gameState === 'countdown')) {
+    lobbyOverlayText = 'Game in progress, please wait';
+  } else if (gameState === 'waiting') {
+    if (Object.keys(allPlayers).length < 2) {
+      lobbyOverlayText = 'Waiting for players, minimum 2 players needed to start game';
+    } else {
+      lobbyOverlayText = 'Waiting for players, press F to start';
+    }
+  } else {
+    lobbyOverlayText = '';
+  }
+}
 
 document.getElementById('join-btn').onclick = () => {
   const username = document.getElementById('username').value;
   socket.emit('join', username);
-    document.getElementById('join-screen').style.display = 'none';
-    canvas.style.display = '';
+  document.getElementById('join-screen').style.display = 'none';
+  canvas.style.display = '';
+  lobbyOverlayText = 'Joining...';
+  spectator = false;
+  stopAnimation();
+    animationFrameId = requestAnimationFrame(drawLobbyOverlay);
 };
 
 const playerListDiv = document.createElement('div');
@@ -30,12 +59,25 @@ playerListDiv.style.fontFamily = 'sans-serif';
 playerListDiv.innerText = 'Players:';
 document.body.appendChild(playerListDiv);
 
-socket.on('player_list', (playerArr) => {
+socket.on('player_list', (data) => {
   allPlayers = {};
+  let playerArr = [];
+  let spectatorArr = [];
+  if (Array.isArray(data)) {
+      playerArr = data;
+  } else {
+      playerArr = data.players || [];
+      spectatorArr = data.spectators || [];
+  }
   for (const p of playerArr) {
     allPlayers[p.id] = p;
+}
+  let html = '<b>Players:</b><br>' + playerArr.map(p => p.username).join('<br>');
+  if (spectatorArr.length > 0) {
+    html += '<br><b>Spectators:</b><br>' + spectatorArr.map(s => s.username).join('<br>');
   }
-  playerListDiv.innerHTML = '<b>Players:</b><br>' + playerArr.map(p => p.username).join('<br>');
+  playerListDiv.innerHTML = html;
+  updateLobbyOverlay();
 });
 
 socket.on('can_start', (canStart) => {
@@ -47,30 +89,10 @@ socket.on('can_start', (canStart) => {
 socket.on('player_hp', (state) => {
   hpState = state;
 });
-socket.on('game_state', (stateObj) => {
-  gameState = stateObj.state;
-  if (gameState === 'countdown') {
-    playerListDiv.innerHTML = playerListDiv.innerHTML.replace(/<br><b>Game starts in.*?\.*?<\/b>/g, '');
-    playerListDiv.innerHTML += `<br><b>Game starts in ${stateObj.countdown}...</b>`;
-  }
-  if (gameState === 'running') {
-    allPlayers = stateObj.players || {};
-    playerListDiv.innerHTML = '<b>Players:</b><br>' + Object.values(allPlayers).map(p => p.username).join('<br>');
-    document.getElementById('join-screen').style.display = 'none';
-    canvas.style.display = '';
-    requestAnimationFrame(drawGame);
-  }
-  if (gameState === 'waiting') {
-    playerListDiv.innerHTML = '<b>Players:</b><br>' + Object.values(allPlayers).map(p => p.username).join('<br>');
-    canvas.style.display = 'none';
-}
-});
 
 socket.on('sim_state', (state) => {
   simState = state;
 });
-
-// --- LISTEN FOR BLOOD PARTICLE EVENTS ---
 socket.on('blood_particle', ({ x, y }) => {
   const count = 8 + Math.floor(Math.random() * 6);
   for (let i = 0; i < count; ++i) {
@@ -98,15 +120,12 @@ function drawRectLimb(ctx, part, width, height, color="#444") {
 
 function drawStickmanParts(ctx, ragdoll, name, headColor='#ffe0b2', hp=100) {
   ctx.save();
-
   let h = ragdoll.head, b = ragdoll.body, la = ragdoll.leftArm, ra = ragdoll.rightArm, ll = ragdoll.leftLeg, rl = ragdoll.rightLeg;
-
   drawRectLimb(ctx, la, 40, 15);
   drawRectLimb(ctx, ra, 40, 15);
   drawRectLimb(ctx, b, 20, 50);
   drawRectLimb(ctx, ll, 20, 40);
   drawRectLimb(ctx, rl, 20, 40);
-
   ctx.beginPath();
   ctx.arc(h.x, h.y, 20, 0, Math.PI * 2);
   ctx.fillStyle = headColor;
@@ -114,7 +133,6 @@ function drawStickmanParts(ctx, ragdoll, name, headColor='#ffe0b2', hp=100) {
   ctx.strokeStyle = "#444";
   ctx.lineWidth = 6;
   ctx.stroke();
-
   ctx.font = '14px sans-serif';
   ctx.fillStyle = "#222";
   ctx.textAlign = 'center';
@@ -123,11 +141,10 @@ function drawStickmanParts(ctx, ragdoll, name, headColor='#ffe0b2', hp=100) {
 }
 
 function drawGame() {
+  updateLobbyOverlay();
   ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-  // --- DRAW BLOOD PARTICLES ---
   for (let p of bloodParticles) {
-  ctx.save();
+    ctx.save();
     ctx.globalAlpha = Math.max(0, p.alpha);
     ctx.beginPath();
     ctx.arc(p.x, p.y, 5 + Math.random()*3, 0, Math.PI*2);
@@ -135,14 +152,12 @@ function drawGame() {
     ctx.shadowColor = "#f55";
     ctx.shadowBlur = 6;
     ctx.fill();
-  ctx.restore();
-
+    ctx.restore();
     p.x += p.vx;
     p.y += p.vy;
     p.vy += 0.15;
     p.vx *= 0.95;
     p.vy *= 0.98;
-
     p.life += 33;
     p.alpha = 1 - (p.life / p.maxLife);
   }
@@ -162,13 +177,52 @@ function drawGame() {
       drawStickmanParts(ctx, ragdoll, playerName, color, playerHp);
     }
   }
+  if (lobbyOverlayText) {
+    ctx.save();
+    ctx.globalAlpha = 0.7;
+    ctx.fillStyle = "#f5f5dc";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.globalAlpha = 1.0;
+    ctx.font = "44px sans-serif";
+    ctx.fillStyle = "#2c2c2c";
+    ctx.textAlign = "center";
+    ctx.fillText(lobbyOverlayText, canvas.width/2, canvas.height/2);
+    ctx.restore();
+  }
+  if (
+    (gameState === 'running') ||
+    (spectator && (gameState === 'running' || gameState === 'countdown'))
+  ) {
+    animationFrameId = requestAnimationFrame(drawGame);
+  }
+}
 
-  if (gameState === 'running') {
-    requestAnimationFrame(drawGame);
+function drawLobbyOverlay() {
+  if (gameState === 'ended') return;
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  if (gameState === 'waiting' && canvas.style.display !== 'none' || lobbyOverlayText === 'Joining...') {
+    ctx.save();
+    ctx.globalAlpha = 0.7;
+    ctx.fillStyle = "#f5f5dc";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.globalAlpha = 1.0;
+    ctx.font = "44px sans-serif";
+    ctx.fillStyle = "#2c2c2c";
+    ctx.textAlign = "center";
+    ctx.fillText(lobbyOverlayText, canvas.width/2, canvas.height/2);
+    ctx.restore();
+    if (gameState === 'waiting' || lobbyOverlayText === 'Joining...') {
+      animationFrameId = requestAnimationFrame(drawLobbyOverlay);
+    }
   }
 }
 
 socket.on('game_over', ({ winner }) => {
+  gameState = 'ended';
+  spectator = false;
+  stopAnimation();
+  canvas.style.display = '';
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
   ctx.save();
   ctx.font = "40px sans-serif";
   ctx.fillStyle = "#2196f3";
@@ -176,6 +230,7 @@ socket.on('game_over', ({ winner }) => {
   ctx.fillText(winner ? `Winner: ${winner}!` : "Draw!", canvas.width/2, canvas.height/2);
   ctx.restore();
 });
+
 let controls = { up: false, down: false, left: false, right: false };
 
 function sendControls() {
@@ -184,6 +239,11 @@ function sendControls() {
 
 window.addEventListener('keydown', (e) => {
     let changed = false;
+  if (gameState === 'waiting' && (e.key === 'f' || e.key === 'F')) {
+    if (Object.keys(allPlayers).length >= 2) {
+      socket.emit('start_game');
+    }
+  }
     if (e.key === 'w') { if (!controls.up) {controls.up = true; changed = true;} }
     if (e.key === 'a') { if (!controls.left) {controls.left = true; changed = true;} }
     if (e.key === 's') { if (!controls.down) {controls.down = true; changed = true;} }
@@ -199,3 +259,48 @@ window.addEventListener('keyup', (e) => {
     if (changed) sendControls();
 });
 
+socket.on('connect', () => {
+  gotSocketId = true;
+  if (pendingGameState) {
+    handleGameState(pendingGameState);
+    pendingGameState = null;
+  }
+});
+
+socket.on('game_state', (stateObj) => {
+  if (!gotSocketId || !socket.id) {
+    pendingGameState = stateObj;
+    return;
+  }
+  handleGameState(stateObj);
+});
+
+function handleGameState(stateObj) {
+  gameState = stateObj.state;
+  allPlayers = stateObj.players || {};
+  spectator = !(socket.id in allPlayers) && (gameState === 'running' || gameState === 'countdown');
+
+  if (gameState === 'countdown') {
+    playerListDiv.innerHTML = playerListDiv.innerHTML.replace(/<br><b>Game starts in.*?\.*?<\/b>/g, '');
+    playerListDiv.innerHTML += `<br><b>Game starts in ${stateObj.countdown}...</b>`;
+  }
+
+  stopAnimation();
+
+  if (
+    gameState === 'running' ||
+    gameState === 'countdown' ||
+    (spectator && (gameState === 'running' || gameState === 'countdown'))
+  ) {
+    canvas.style.display = '';
+    updateLobbyOverlay();
+    animationFrameId = requestAnimationFrame(drawGame);
+  } else if (gameState === 'waiting') {
+    spectator = false;
+    canvas.style.display = '';
+    updateLobbyOverlay();
+    animationFrameId = requestAnimationFrame(drawLobbyOverlay);
+  } else {
+    updateLobbyOverlay();
+  }
+}
