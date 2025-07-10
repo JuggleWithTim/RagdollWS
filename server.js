@@ -18,8 +18,8 @@ let roundInterval = null;
 
 let engine = Matter.Engine.create();
 engine.world.gravity.y = 0.1;
-const arenaWidth = 1920;
-const arenaHeight = 1280;
+const arenaWidth = 1280;
+const arenaHeight = 720;
 
 let stickmen = {};
 let playerInputs = {};
@@ -195,6 +195,16 @@ function applyDamage(playerId, dmg) {
     io.emit('player_hp', playerHP);
     if (playerHP[playerId] === 0) {
         if (players[playerId]) players[playerId].eliminated = true;
+
+        // --- ADD: break constraints to "kill" the ragdoll (corpse effect) ---
+        if (stickmen[playerId] && stickmen[playerId].constraints) {
+            for (const c of stickmen[playerId].constraints) {
+                Matter.World.remove(engine.world, c);
+        }
+            stickmen[playerId].constraints = []; // constraints removed
+}
+        // --- END ADD ---
+
         checkForWinner();
         }
 }
@@ -249,6 +259,13 @@ Matter.Events.on(engine, 'collisionStart', event => {
         if (!ownerA || !ownerB || ownerA === ownerB) continue;
         let partA = bodyA.partName, partB = bodyB.partName;
 
+        // --- ADDED: skip collision between or from eliminated players ---
+        if ((players[ownerA] && players[ownerA].eliminated) ||
+            (players[ownerB] && players[ownerB].eliminated)) {
+            continue;
+        }
+        // --- END ADD ---
+
         const px = (bodyA.position.x + bodyB.position.x) / 2;
         const py = (bodyA.position.y + bodyB.position.y) / 2;
         io.emit('blood_particle', { x: px, y: py });
@@ -258,7 +275,6 @@ Matter.Events.on(engine, 'collisionStart', event => {
             let dmg = hitMatrix[area]?.[atk] ?? 0;
             if (dmg > 0) {
                 applyDamage(ownerB, dmg);
-
                 doBounce(ragdollFromPlayer(ownerA, partA), ragdollFromPlayer(ownerB, partB));
             }
         }
@@ -268,7 +284,6 @@ Matter.Events.on(engine, 'collisionStart', event => {
             let dmg = hitMatrix[area]?.[atk] ?? 0;
             if (dmg > 0) {
                 applyDamage(ownerA, dmg);
-
                 doBounce(ragdollFromPlayer(ownerB, partB), ragdollFromPlayer(ownerA, partA));
             }
         }
