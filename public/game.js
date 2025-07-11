@@ -22,6 +22,18 @@ function stopAnimation() {
   }
 }
 
+function escapeHTML(str) {
+  return String(str).replace(/[&<>"]|'/g, function (s) {
+    return ({
+      '&': '&amp;',
+      '<': '&lt;',
+      '>': '&gt;',
+      '"': '&quot;',
+      "'": '&#39;'
+    })[s];
+  });
+}
+
 function updateLobbyOverlay() {
   if (spectator && (gameState === 'running' || gameState === 'countdown')) {
     lobbyOverlayText = 'Game in progress, please wait';
@@ -74,9 +86,9 @@ socket.on('player_list', (data) => {
   for (const p of playerArr) {
     allPlayers[p.id] = p;
 }
-  let html = '<b>Players:</b><br>' + playerArr.map(p => p.username).join('<br>');
+  let html = '<b>Players:</b><br>' + playerArr.map(p => escapeHTML(p.username)).join('<br>');
   if (spectatorArr.length > 0) {
-    html += '<br><b>Spectators:</b><br>' + spectatorArr.map(s => s.username).join('<br>');
+    html += '<br><b>Spectators:</b><br>' + spectatorArr.map(s => escapeHTML(s.username)).join('<br>');
   }
   playerListDiv.innerHTML = html;
   updateLobbyOverlay();
@@ -226,7 +238,7 @@ socket.on('game_over', ({ winner }) => {
   // stopAnimation(); // Don't stop animation!
   canvas.style.display = '';
   // ctx.clearRect(0, 0, canvas.width, canvas.height); // Don't clear explicitly!
-  lobbyOverlayText = winner ? `Winner: ${winner}!` : "Draw!";
+  lobbyOverlayText = winner ? `Winner: ${escapeHTML(winner)}!` : "Draw!";
     animationFrameId = requestAnimationFrame(drawGame);
 });
 
@@ -303,4 +315,3 @@ function handleGameState(stateObj) {
     updateLobbyOverlay();
   }
 }
-
