@@ -177,7 +177,6 @@ function startGame() {
 }
 
 function resetToLobby() {
-    // Move spectators to players
     for (let id in spectators) {
         players[id] = spectators[id];
     }
@@ -195,16 +194,12 @@ function applyDamage(playerId, dmg) {
     io.emit('player_hp', playerHP);
     if (playerHP[playerId] === 0) {
         if (players[playerId]) players[playerId].eliminated = true;
-
-        // --- ADD: break constraints to "kill" the ragdoll (corpse effect) ---
         if (stickmen[playerId] && stickmen[playerId].constraints) {
             for (const c of stickmen[playerId].constraints) {
                 Matter.World.remove(engine.world, c);
         }
-            stickmen[playerId].constraints = []; // constraints removed
+            stickmen[playerId].constraints = [];
 }
-        // --- END ADD ---
-
         checkForWinner();
         }
 }
@@ -258,14 +253,10 @@ Matter.Events.on(engine, 'collisionStart', event => {
         let ownerA = bodyA.playerId, ownerB = bodyB.playerId;
         if (!ownerA || !ownerB || ownerA === ownerB) continue;
         let partA = bodyA.partName, partB = bodyB.partName;
-
-        // --- ADDED: skip collision between or from eliminated players ---
         if ((players[ownerA] && players[ownerA].eliminated) ||
             (players[ownerB] && players[ownerB].eliminated)) {
             continue;
         }
-        // --- END ADD ---
-
         const px = (bodyA.position.x + bodyB.position.x) / 2;
         const py = (bodyA.position.y + bodyB.position.y) / 2;
         io.emit('blood_particle', { x: px, y: py });
@@ -345,6 +336,7 @@ io.on('connection', (socket) => {
 setInterval(() => {
     if (gameState === 'running') {
         for (let id in stickmen) {
+            if (players[id] && players[id].eliminated) continue;
             const input = playerInputs[id] || {};
             const ragdoll = stickmen[id];
             if (ragdoll && ragdoll.parts && ragdoll.parts.head) {
