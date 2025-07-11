@@ -150,9 +150,11 @@ function startCountdown() {
 function startGame() {
     gameState = 'running';
 
-    Matter.World.clear(engine.world, false);
-    stickmen = {};
-    playerInputs = {};
+    // ----- Removed: Matter.World.clear and stickmen reset from here -----
+    // Matter.World.clear(engine.world, false);
+    // stickmen = {};
+    // playerInputs = {};
+
     addArenaBorders();
 
     playerHP = {};
@@ -177,6 +179,12 @@ function startGame() {
 }
 
 function resetToLobby() {
+    // ----- ADDED: Only clear world & remove ragdolls here, after overlay -----
+    Matter.World.clear(engine.world, false);
+    stickmen = {};
+    playerInputs = {};
+    // ----- END ADD -----
+    // Move spectators to players
     for (let id in spectators) {
         players[id] = spectators[id];
     }
@@ -334,7 +342,7 @@ io.on('connection', (socket) => {
 });
 
 setInterval(() => {
-    if (gameState === 'running') {
+    if (["running", "ended"].includes(gameState)) {
         for (let id in stickmen) {
             if (players[id] && players[id].eliminated) continue;
             const input = playerInputs[id] || {};

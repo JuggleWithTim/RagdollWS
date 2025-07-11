@@ -31,6 +31,8 @@ function updateLobbyOverlay() {
     } else {
       lobbyOverlayText = 'Waiting for players, press F to start';
     }
+  } else if (gameState === 'ended' && lobbyOverlayText) {
+    // keep current winner/draw text
   } else {
     lobbyOverlayText = '';
   }
@@ -183,7 +185,7 @@ function drawGame() {
     ctx.fillStyle = "#f5f5dc";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     ctx.globalAlpha = 1.0;
-    ctx.font = "44px sans-serif";
+    ctx.font = (gameState === 'ended') ? "40px sans-serif" : "44px sans-serif";
     ctx.fillStyle = "#2c2c2c";
     ctx.textAlign = "center";
     ctx.fillText(lobbyOverlayText, canvas.width/2, canvas.height/2);
@@ -191,7 +193,8 @@ function drawGame() {
   }
   if (
     (gameState === 'running') ||
-    (spectator && (gameState === 'running' || gameState === 'countdown'))
+    (spectator && (gameState === 'running' || gameState === 'countdown')) ||
+    gameState === 'ended'
   ) {
     animationFrameId = requestAnimationFrame(drawGame);
   }
@@ -220,15 +223,11 @@ function drawLobbyOverlay() {
 socket.on('game_over', ({ winner }) => {
   gameState = 'ended';
   spectator = false;
-  stopAnimation();
+  // stopAnimation(); // Don't stop animation!
   canvas.style.display = '';
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  ctx.save();
-  ctx.font = "40px sans-serif";
-  ctx.fillStyle = "#2196f3";
-  ctx.textAlign = "center";
-  ctx.fillText(winner ? `Winner: ${winner}!` : "Draw!", canvas.width/2, canvas.height/2);
-  ctx.restore();
+  // ctx.clearRect(0, 0, canvas.width, canvas.height); // Don't clear explicitly!
+  lobbyOverlayText = winner ? `Winner: ${winner}!` : "Draw!";
+    animationFrameId = requestAnimationFrame(drawGame);
 });
 
 let controls = { up: false, down: false, left: false, right: false };
@@ -304,3 +303,4 @@ function handleGameState(stateObj) {
     updateLobbyOverlay();
   }
 }
+
