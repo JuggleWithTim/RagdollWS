@@ -153,11 +153,30 @@ function drawStickmanParts(ctx, ragdoll, name, headColor='#ffe0b2', hp=100) {
   ctx.fillStyle = "#222";
   ctx.textAlign = 'center';
   ctx.fillText(`${name} (${hp})`, h.x, h.y - 30);
-  ctx.restore();
-}
+
+  if (ragdoll.leftNut) {
+    ctx.beginPath();
+    ctx.arc(ragdoll.leftNut.x, ragdoll.leftNut.y, 8, 0, Math.PI * 2);
+    ctx.fillStyle = "#b8a586";
+    ctx.strokeStyle = "#7a6046";
+    ctx.lineWidth = 2;
+    ctx.fill();
+    ctx.stroke();
+  }
+  if (ragdoll.rightNut) {
+    ctx.beginPath();
+    ctx.arc(ragdoll.rightNut.x, ragdoll.rightNut.y, 8, 0, Math.PI * 2);
+    ctx.fillStyle = "#b8a586";
+    ctx.strokeStyle = "#7a6046";
+    ctx.lineWidth = 2;
+    ctx.fill();
+    ctx.stroke();
+  }
+    ctx.restore();
+  }
 
 function drawGame() {
-  updateLobbyOverlay();
+    updateLobbyOverlay();
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   for (let p of bloodParticles) {
     ctx.save();
@@ -221,7 +240,7 @@ function drawGame() {
     ctx.textAlign = "center";
     ctx.fillText(lobbyOverlayText, canvas.width/2, canvas.height/2);
     ctx.restore();
-    }
+  }
   if (
     (gameState === 'running') ||
     (spectator && (gameState === 'running' || gameState === 'countdown')) ||
@@ -263,9 +282,9 @@ function drawLobbyOverlay() {
     ctx.fillText(lobbyOverlayText, canvas.width/2, canvas.height/2);
     ctx.restore();
     if (gameState === 'waiting' || lobbyOverlayText === 'Joining...') {
-    animationFrameId = requestAnimationFrame(drawLobbyOverlay);
+      animationFrameId = requestAnimationFrame(drawLobbyOverlay);
+    }
   }
-}
 }
 
 socket.on('game_over', ({ winner }) => {
@@ -281,29 +300,43 @@ socket.on('game_over', ({ winner }) => {
 let controls = { up: false, down: false, left: false, right: false };
 
 function sendControls() {
-    socket.emit('input', controls);
+  socket.emit('input', controls);
+}
+
+let cheatBuffer = '';
+function resetCheatBuffer() {
+  cheatBuffer = '';
+}
+function checkForDeeznutsCheat(key) {
+  cheatBuffer += key.toLowerCase();
+  if (cheatBuffer.length > 8) cheatBuffer = cheatBuffer.slice(-8);
+  if (cheatBuffer === 'deeznuts') {
+    socket.emit('spawn_nuts');
+    resetCheatBuffer();
+  }
 }
 
 window.addEventListener('keydown', (e) => {
-    let changed = false;
+  checkForDeeznutsCheat(e.key);
+  let changed = false;
   if (gameState === 'waiting' && (e.key === 'f' || e.key === 'F')) {
     if (Object.keys(allPlayers).length >= 2) {
       socket.emit('start_game');
     }
   }
-    if (e.key === 'w') { if (!controls.up) {controls.up = true; changed = true;} }
-    if (e.key === 'a') { if (!controls.left) {controls.left = true; changed = true;} }
-    if (e.key === 's') { if (!controls.down) {controls.down = true; changed = true;} }
-    if (e.key === 'd') { if (!controls.right) {controls.right = true; changed = true;} }
-    if (changed) sendControls();
+  if (e.key === 'w') { if (!controls.up) {controls.up = true; changed = true;} }
+  if (e.key === 'a') { if (!controls.left) {controls.left = true; changed = true;} }
+  if (e.key === 's') { if (!controls.down) {controls.down = true; changed = true;} }
+  if (e.key === 'd') { if (!controls.right) {controls.right = true; changed = true;} }
+  if (changed) sendControls();
 });
 window.addEventListener('keyup', (e) => {
-    let changed = false;
-    if (e.key === 'w') { if (controls.up) {controls.up = false; changed = true;} }
-    if (e.key === 'a') { if (controls.left) {controls.left = false; changed = true;} }
-    if (e.key === 's') { if (controls.down) {controls.down = false; changed = true;} }
-    if (e.key === 'd') { if (controls.right) {controls.right = false; changed = true;} }
-    if (changed) sendControls();
+  let changed = false;
+  if (e.key === 'w') { if (controls.up) {controls.up = false; changed = true;} }
+  if (e.key === 'a') { if (controls.left) {controls.left = false; changed = true;} }
+  if (e.key === 's') { if (controls.down) {controls.down = false; changed = true;} }
+  if (e.key === 'd') { if (controls.right) {controls.right = false; changed = true;} }
+  if (changed) sendControls();
 });
 
 socket.on('connect', () => {

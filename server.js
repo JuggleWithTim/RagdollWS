@@ -33,18 +33,22 @@ const hitMatrix = {
   body:   { foot: 20, hand: 15, other: 10 },
   arm:    { foot: 10, hand: 5,  other: 3 },
   leg:    { foot: 10, hand: 5,  other: 3 },
+  leftNut: { foot: 80, hand: 50, other: 30 },
+  rightNut: { foot: 80, hand: 50, other: 30 },
 };
 
 const partAttackType = {
   leftLeg: 'foot', rightLeg: 'foot',
   leftArm: 'hand', rightArm: 'hand',
   head: 'other', body: 'other',
+  leftNut: 'other', rightNut: 'other',
 };
 
 const partVulnerableArea = {
   head: 'head', body: 'body',
   leftArm: 'arm', rightArm: 'arm',
   leftLeg: 'leg', rightLeg: 'leg',
+  leftNut: 'leftNut', rightNut: 'rightNut',
 };
 
 function addArenaBorders() {
@@ -252,10 +256,8 @@ function doBounce(bodyA, bodyB) {
     if (!bodyA || !bodyB) return;
     const dx = bodyB.position.x - bodyA.position.x;
     const dy = bodyB.position.y - bodyA.position.y;
-
     let dist = Math.sqrt(dx * dx + dy * dy) || 1;
     const speed = 12;
-
     Matter.Body.setVelocity(bodyA, {
         x: bodyA.velocity.x - (dx / dist) * speed,
         y: bodyA.velocity.y - (dy / dist) * speed
@@ -264,7 +266,6 @@ function doBounce(bodyA, bodyB) {
         x: bodyB.velocity.x + (dx / dist) * speed,
         y: bodyB.velocity.y + (dy / dist) * speed
 });
-
     const rotationFactor = 0.1;
     Matter.Body.setAngularVelocity(bodyA, bodyA.angularVelocity + (Math.random() - 0.5) * rotationFactor);
     Matter.Body.setAngularVelocity(bodyB, bodyB.angularVelocity + (Math.random() - 0.5) * rotationFactor);
@@ -343,6 +344,47 @@ io.on('connection', (socket) => {
         }
     });
 
+    socket.on('spawn_nuts', () => {
+        const ragdoll = stickmen[socket.id];
+        if (!ragdoll || ragdoll.hasNuts) return;
+        const body = ragdoll.parts.body;
+        const angle = body.angle;
+
+        const leftOffset = { x: -7, y: 36 };
+        const rightOffset = { x: 7, y: 36 };
+        const getWorld = (lx, ly) => ({
+            x: body.position.x + lx * Math.cos(angle) - ly * Math.sin(angle),
+            y: body.position.y + lx * Math.sin(angle) + ly * Math.cos(angle)
+        });
+        const leftWorld = getWorld(leftOffset.x, leftOffset.y);
+        const rightWorld = getWorld(rightOffset.x, rightOffset.y);
+
+        const leftNut = Matter.Bodies.circle(leftWorld.x, leftWorld.y, 8, {
+            restitution: 0.7,
+            label: 'leftNut',
+            isSensor: true,
+            mass: 2
+        });
+        const rightNut = Matter.Bodies.circle(rightWorld.x, rightWorld.y, 8, {
+            restitution: 0.7,
+            label: 'rightNut',
+            isSensor: true,
+            mass: 2
+        });
+        leftNut.playerId = socket.id; leftNut.partName = 'leftNut';
+        rightNut.playerId = socket.id; rightNut.partName = 'rightNut';
+
+        Matter.Body.setVelocity(leftNut, body.velocity);
+        Matter.Body.setVelocity(rightNut, body.velocity);
+        Matter.Body.setAngularVelocity(leftNut, body.angularVelocity);
+        Matter.Body.setAngularVelocity(rightNut, body.angularVelocity);
+
+        Matter.World.add(engine.world, [leftNut, rightNut]);
+        ragdoll.parts.leftNut = leftNut;
+        ragdoll.parts.rightNut = rightNut;
+        ragdoll.hasNuts = true;
+    });
+
     socket.on('disconnect', () => {
         delete players[socket.id];
         delete spectators[socket.id];
@@ -389,12 +431,37 @@ setInterval(() => {
                             ragdoll.parts.head,
                             ragdoll.parts.head.angularVelocity + spinImpulse
                         );
-                    }
+    }
                 }
             }
         }
 
         Matter.Engine.update(engine, 1000 / 60);
+
+        for (let id in stickmen) {
+            const ragdoll = stickmen[id];
+            if (ragdoll.parts.leftNut && ragdoll.parts.rightNut && ragdoll.parts.body) {
+                const body = ragdoll.parts.body;
+                const angle = body.angle;
+                const leftTarget = {
+                    x: body.position.x + (-7) * Math.cos(angle) - 36 * Math.sin(angle),
+                    y: body.position.y + (-7) * Math.sin(angle) + 36 * Math.cos(angle)
+                };
+                const rightTarget = {
+                    x: body.position.x + (7) * Math.cos(angle) - 36 * Math.sin(angle),
+                    y: body.position.y + (7) * Math.sin(angle) + 36 * Math.cos(angle)
+                };
+                // Calculate force for each nut toward its local target
+                const applyPull = (ball, target) => {
+                    const strength = 0.003;
+                    const dx = target.x - ball.position.x;
+                    const dy = target.y - ball.position.y;
+                    Matter.Body.applyForce(ball, ball.position, { x: dx * strength, y: dy * strength });
+                };
+                applyPull(ragdoll.parts.leftNut, leftTarget);
+                applyPull(ragdoll.parts.rightNut, rightTarget);
+            }
+        }
 
         let simState = {};
         for (let id in stickmen) {
