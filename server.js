@@ -15,7 +15,8 @@ let minPlayers = 2;
 let gameState = 'waiting'; // waiting | countdown | running | ended
 let countdown = 0;
 let roundInterval = null;
-
+let roundTimer = null;
+let roundStartTime = null;
 let engine = Matter.Engine.create();
 engine.world.gravity.y = 0.1;
 const arenaWidth = 1280;
@@ -149,42 +150,47 @@ function startCountdown() {
 
 function startGame() {
     gameState = 'running';
-
-    // ----- Removed: Matter.World.clear and stickmen reset from here -----
-    // Matter.World.clear(engine.world, false);
-    // stickmen = {};
-    // playerInputs = {};
-
     addArenaBorders();
-
     playerHP = {};
     for (let id in players) {
         playerHP[id] = MAX_HP;
         players[id].eliminated = false;
     }
-
     Object.values(players).forEach(player => {
         let sx = 100 + Math.random() * 600;
         let sy = 100 + Math.random() * 400;
         let ragdoll = makeStickman(sx, sy, player.id);
-
         ragdoll.bodies.forEach(b => Matter.World.add(engine.world, b));
         ragdoll.constraints.forEach(c => Matter.World.add(engine.world, c));
         stickmen[player.id] = ragdoll;
         player.spawn = { x: sx, y: sy };
     });
-
-    io.emit('game_state', { state: 'running', players: players });
+    if (roundTimer) clearTimeout(roundTimer);
+    roundStartTime = Date.now();
+    roundTimer = setTimeout(() => {
+        if (gameState === 'running') {
+            io.emit('game_over', { winner: null });
+        gameState = 'ended';
+            setTimeout(resetToLobby, 4000);
+    }
+    }, 5 * 60 * 1000);
+    io.emit('game_state', {
+        state: 'running',
+            players: players,
+        roundEndsAt: roundStartTime + 5 * 60 * 1000
+        });
     io.emit('player_hp', playerHP);
 }
 
 function resetToLobby() {
-    // ----- ADDED: Only clear world & remove ragdolls here, after overlay -----
     Matter.World.clear(engine.world, false);
     stickmen = {};
     playerInputs = {};
-    // ----- END ADD -----
-    // Move spectators to players
+    if (roundTimer) {
+        clearTimeout(roundTimer);
+        roundTimer = null;
+    }
+    roundStartTime = null;
     for (let id in spectators) {
         players[id] = spectators[id];
     }
@@ -192,7 +198,7 @@ function resetToLobby() {
     gameState = 'waiting';
     io.emit('game_state', { state: 'waiting' });
         broadcastPlayerList();
-}
+        }
 
 function applyDamage(playerId, dmg) {
     if (gameState !== 'running' || !playerHP[playerId]) return;
@@ -205,11 +211,11 @@ function applyDamage(playerId, dmg) {
         if (stickmen[playerId] && stickmen[playerId].constraints) {
             for (const c of stickmen[playerId].constraints) {
                 Matter.World.remove(engine.world, c);
-        }
+            }
             stickmen[playerId].constraints = [];
-}
-        checkForWinner();
         }
+        checkForWinner();
+    }
 }
 
 function checkForWinner() {
@@ -219,11 +225,21 @@ function checkForWinner() {
         const winnerId = alivePlayers[0];
         io.emit('game_over', { winner: players[winnerId]?.username || '???' });
         gameState = 'ended';
+        if (roundTimer) {
+            clearTimeout(roundTimer);
+            roundTimer = null;
+        }
+        roundStartTime = null;
         setTimeout(resetToLobby, 5000);
     }
     if (alivePlayers.length === 0) {
         io.emit('game_over', { winner: null });
         gameState = 'ended';
+        if (roundTimer) {
+            clearTimeout(roundTimer);
+            roundTimer = null;
+        }
+        roundStartTime = null;
         setTimeout(resetToLobby, 4000);
     }
 }
@@ -233,25 +249,25 @@ function ragdollFromPlayer(ownerId, partName) {
 }
 
 function doBounce(bodyA, bodyB) {
-  if (!bodyA || !bodyB) return;
-  const dx = bodyB.position.x - bodyA.position.x;
-  const dy = bodyB.position.y - bodyA.position.y;
+    if (!bodyA || !bodyB) return;
+    const dx = bodyB.position.x - bodyA.position.x;
+    const dy = bodyB.position.y - bodyA.position.y;
 
-  let dist = Math.sqrt(dx*dx + dy*dy) || 1;
-  const speed = 12;
+    let dist = Math.sqrt(dx * dx + dy * dy) || 1;
+    const speed = 12;
 
-  Matter.Body.setVelocity(bodyA, {
-    x: bodyA.velocity.x - (dx / dist) * speed,
-    y: bodyA.velocity.y - (dy / dist) * speed
+    Matter.Body.setVelocity(bodyA, {
+        x: bodyA.velocity.x - (dx / dist) * speed,
+        y: bodyA.velocity.y - (dy / dist) * speed
     });
-  Matter.Body.setVelocity(bodyB, {
-    x: bodyB.velocity.x + (dx / dist) * speed,
-    y: bodyB.velocity.y + (dy / dist) * speed
+    Matter.Body.setVelocity(bodyB, {
+        x: bodyB.velocity.x + (dx / dist) * speed,
+        y: bodyB.velocity.y + (dy / dist) * speed
 });
 
-  const rotationFactor = 0.1;
-  Matter.Body.setAngularVelocity(bodyA, bodyA.angularVelocity + (Math.random() - 0.5) * rotationFactor);
-  Matter.Body.setAngularVelocity(bodyB, bodyB.angularVelocity + (Math.random() - 0.5) * rotationFactor);
+    const rotationFactor = 0.1;
+    Matter.Body.setAngularVelocity(bodyA, bodyA.angularVelocity + (Math.random() - 0.5) * rotationFactor);
+    Matter.Body.setAngularVelocity(bodyB, bodyB.angularVelocity + (Math.random() - 0.5) * rotationFactor);
 }
 
 Matter.Events.on(engine, 'collisionStart', event => {
@@ -312,6 +328,7 @@ io.on('connection', (socket) => {
             state: gameState,
             players: players,
             countdown: countdown,
+            roundEndsAt: roundStartTime ? (roundStartTime + 5 * 60 * 1000) : null
         });
         socket.emit('player_hp', playerHP);
     });
