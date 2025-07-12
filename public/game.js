@@ -15,6 +15,8 @@ let lobbyOverlayText = '';
 let gotSocketId = false;
 let pendingGameState = null;
 
+let roundEndsAt = null;
+
 function stopAnimation() {
   if (animationFrameId !== null) {
     cancelAnimationFrame(animationFrameId);
@@ -191,6 +193,23 @@ function drawGame() {
       drawStickmanParts(ctx, ragdoll, playerName, color, playerHp);
     }
   }
+
+  // Draw timer if roundEndsAt is set (top center)
+  if (roundEndsAt && (gameState === 'running' || gameState === 'countdown')) {
+    let msLeft = roundEndsAt - Date.now();
+    if (msLeft < 0) msLeft = 0;
+    let sec = Math.floor(msLeft / 1000) % 60;
+    let min = Math.floor(msLeft / 60000);
+    let timeStr = `${min}:${sec.toString().padStart(2,'0')}`;
+    ctx.save();
+    ctx.font = "32px sans-serif";
+    ctx.fillStyle = msLeft <= 30000 ? "#c33" : "#256";
+    ctx.textAlign = "center";
+    ctx.globalAlpha = 0.9;
+    ctx.fillText(timeStr, canvas.width/2, 50);
+    ctx.restore();
+  }
+
   if (lobbyOverlayText) {
     ctx.save();
     ctx.globalAlpha = 0.7;
@@ -202,7 +221,7 @@ function drawGame() {
     ctx.textAlign = "center";
     ctx.fillText(lobbyOverlayText, canvas.width/2, canvas.height/2);
     ctx.restore();
-  }
+    }
   if (
     (gameState === 'running') ||
     (spectator && (gameState === 'running' || gameState === 'countdown')) ||
@@ -215,6 +234,23 @@ function drawGame() {
 function drawLobbyOverlay() {
   if (gameState === 'ended') return;
   ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  // Draw timer in lobby if roundEndsAt exists (during countdown)
+  if (roundEndsAt && (gameState === 'countdown')) {
+    let msLeft = roundEndsAt - Date.now();
+    if (msLeft < 0) msLeft = 0;
+    let sec = Math.floor(msLeft / 1000) % 60;
+    let min = Math.floor(msLeft / 60000);
+    let timeStr = `${min}:${sec.toString().padStart(2,'0')}`;
+    ctx.save();
+    ctx.font = "32px sans-serif";
+    ctx.fillStyle = msLeft <= 10000 ? "#c33" : "#256";
+    ctx.textAlign = "center";
+    ctx.globalAlpha = 0.9;
+    ctx.fillText(timeStr, canvas.width/2, 50);
+    ctx.restore();
+  }
+
   if (gameState === 'waiting' && canvas.style.display !== 'none' || lobbyOverlayText === 'Joining...') {
     ctx.save();
     ctx.globalAlpha = 0.7;
@@ -227,9 +263,9 @@ function drawLobbyOverlay() {
     ctx.fillText(lobbyOverlayText, canvas.width/2, canvas.height/2);
     ctx.restore();
     if (gameState === 'waiting' || lobbyOverlayText === 'Joining...') {
-      animationFrameId = requestAnimationFrame(drawLobbyOverlay);
-    }
+    animationFrameId = requestAnimationFrame(drawLobbyOverlay);
   }
+}
 }
 
 socket.on('game_over', ({ winner }) => {
@@ -239,7 +275,7 @@ socket.on('game_over', ({ winner }) => {
   canvas.style.display = '';
   // ctx.clearRect(0, 0, canvas.width, canvas.height); // Don't clear explicitly!
   lobbyOverlayText = winner ? `Winner: ${escapeHTML(winner)}!` : "Draw!";
-    animationFrameId = requestAnimationFrame(drawGame);
+  animationFrameId = requestAnimationFrame(drawGame);
 });
 
 let controls = { up: false, down: false, left: false, right: false };
@@ -283,6 +319,7 @@ socket.on('game_state', (stateObj) => {
     pendingGameState = stateObj;
     return;
   }
+  roundEndsAt = stateObj.roundEndsAt || null;
   handleGameState(stateObj);
 });
 
