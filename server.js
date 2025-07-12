@@ -1,16 +1,26 @@
+require('dotenv').config();
 const express = require('express');
 const http = require('http');
 const { Server } = require("socket.io");
 const Matter = require('matter-js');
+const axios = require('axios');
 
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
 
+const USE_TWITCH_LOGIN = false; // Set false for manual login, true for Twitch OAuth enforced
+const TWITCH_CLIENT_ID = process.env.TWITCH_CLIENT_ID;
+const TWITCH_CLIENT_SECRET = process.env.TWITCH_CLIENT_SECRET;
+
 app.use(express.static('public'));
 
 app.get('/twitch', (req, res) => {
   res.sendFile(__dirname + '/public/twitch.html');
+});
+
+app.get('/twitch_client_id', (req, res) => {
+  res.json({ client_id: TWITCH_CLIENT_ID });
 });
 
 let players = {};
@@ -315,16 +325,43 @@ Matter.Events.on(engine, 'collisionStart', event => {
 });
 
 io.on('connection', (socket) => {
-    socket.on('join', (joinArg) => {
-        let username, asSpectator = false;
+    socket.on('join', async (joinArg) => {
+        let username, asSpectator = false, twitchToken = null;
+
         if (typeof joinArg === 'object' && joinArg !== null) {
             username = joinArg.username;
             asSpectator = !!joinArg.spectator;
+            twitchToken = joinArg.twitchToken;
         } else {
             username = joinArg;
-    }
-        if (!username || typeof username !== 'string') return;
-        username = username.substring(0, 16);
+        }
+
+        if (USE_TWITCH_LOGIN) {
+            if (!twitchToken) {
+                socket.emit('auth_error', 'Missing Twitch login');
+                return;
+            }
+            try {
+                const userResp = await axios.get('https://api.twitch.tv/helix/users', {
+                    headers: {
+                        'Authorization': 'Bearer ' + twitchToken,
+                        'Client-Id': TWITCH_CLIENT_ID,
+                    }
+                });
+                if (userResp.data.data && userResp.data.data.length > 0) {
+                    username = userResp.data.data[0].display_name.substring(0, 16);
+                } else {
+                    socket.emit('auth_error', 'Twitch authentication failed (user info)');
+                    return;
+                }
+            } catch (e) {
+                socket.emit('auth_error', 'Twitch authentication failed');
+                return;
+            }
+        } else {
+            if (!username || typeof username !== 'string') return;
+            username = username.substring(0, 16);
+        }
 
         if (asSpectator) {
             spectators[socket.id] = {

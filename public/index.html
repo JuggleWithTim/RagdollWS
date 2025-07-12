@@ -6,11 +6,24 @@
 </head>
 <body style="background-color: #383838;">
   <div id="join-screen">
-    <input id="username" placeholder="Username" maxlength="16"/>
-    <button id="join-btn">Join Game</button>
+    <input id="username" placeholder="Username" maxlength="16" style="display: none"/>
+    <button id="join-btn" style="display: none">Join Game</button>
+    <button id="twitch-login-btn" style="display: none">Login with Twitch</button>
   </div>
   <canvas id="game-canvas" width="1280" height="720" style="background-color: beige;"></canvas>
   <script src="/socket.io/socket.io.js"></script>
+  <script>
+  // Conditionally show Twitch or normal join
+  const USE_TWITCH_LOGIN = false; // Keep in sync with server.js!
+  window.addEventListener('DOMContentLoaded', () => {
+    if (USE_TWITCH_LOGIN) {
+      document.getElementById('twitch-login-btn').style.display = '';
+    } else {
+      document.getElementById('username').style.display = '';
+      document.getElementById('join-btn').style.display = '';
+    }
+  });
+  </script>
   <script src="game.js"></script>
 </body>
 </html>

@@ -3,6 +3,21 @@ const canvas = document.getElementById('game-canvas');
 const ctx = canvas.getContext('2d');
 canvas.style.display = 'none';
 
+const USE_TWITCH_LOGIN = true; // Set to false to allow manual username selection
+
+// Hide/show buttons based on Twitch login
+window.addEventListener('DOMContentLoaded', () => {
+  if (USE_TWITCH_LOGIN) {
+    document.getElementById('username').style.display = 'none';
+    document.getElementById('join-btn').style.display = 'none';
+    document.getElementById('twitch-login-btn').style.display = '';
+  } else {
+    document.getElementById('username').style.display = '';
+    document.getElementById('join-btn').style.display = '';
+    document.getElementById('twitch-login-btn').style.display = 'none';
+  }
+});
+
 let gameState = 'waiting';
 let allPlayers = {};
 let simState = {};
@@ -53,6 +68,7 @@ function updateLobbyOverlay() {
 }
 
 document.getElementById('join-btn').onclick = () => {
+  if (USE_TWITCH_LOGIN) return;
   const username = document.getElementById('username').value;
   socket.emit('join', username);
   document.getElementById('join-screen').style.display = 'none';
@@ -60,8 +76,49 @@ document.getElementById('join-btn').onclick = () => {
   lobbyOverlayText = 'Joining...';
   spectator = false;
   stopAnimation();
-    animationFrameId = requestAnimationFrame(drawLobbyOverlay);
+  animationFrameId = requestAnimationFrame(drawLobbyOverlay);
 };
+
+document.getElementById('twitch-login-btn').onclick = () => {
+  fetch('/twitch_client_id').then(r => r.json()).then(cfg => {
+    const clientId = cfg.client_id;
+    const redirectUri = window.location.origin + '/';
+    const scope = 'user:read:email';
+    const state = Math.random().toString(36).slice(2);
+    localStorage.setItem('twitch_oauth_state', state);
+    const url = `https://id.twitch.tv/oauth2/authorize?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=token&scope=${scope}&state=${state}`;
+    window.location = url;
+  });
+};
+
+function getTwitchTokenFromUrl() {
+  if (window.location.hash && window.location.hash.includes('access_token')) {
+    const params = new URLSearchParams(window.location.hash.slice(1));
+    const accessToken = params.get('access_token');
+    const state = params.get('state');
+    return accessToken;
+  }
+  return null;
+}
+
+(async () => {
+  const token = getTwitchTokenFromUrl();
+  if (USE_TWITCH_LOGIN && token) {
+    history.replaceState(null, '', window.location.pathname);
+    socket.emit('join', { twitchToken: token });
+    document.getElementById('join-screen').style.display = 'none';
+    canvas.style.display = '';
+    lobbyOverlayText = 'Joining...';
+    spectator = false;
+    stopAnimation();
+    animationFrameId = requestAnimationFrame(drawLobbyOverlay);
+  }
+})();
+
+socket.on('auth_error', (msg) => {
+  alert('Authentication error: ' + msg);
+  document.getElementById('join-screen').style.display = '';
+});
 
 const playerListDiv = document.createElement('div');
 playerListDiv.id = 'player-list';
@@ -80,14 +137,14 @@ socket.on('player_list', (data) => {
   let playerArr = [];
   let spectatorArr = [];
   if (Array.isArray(data)) {
-      playerArr = data;
+    playerArr = data;
   } else {
-      playerArr = data.players || [];
-      spectatorArr = data.spectators || [];
+    playerArr = data.players || [];
+    spectatorArr = data.spectators || [];
   }
   for (const p of playerArr) {
     allPlayers[p.id] = p;
-}
+  }
   let html = '<b>Players:</b><br>' + playerArr.map(p => escapeHTML(p.username)).join('<br>');
   if (spectatorArr.length > 0) {
     html += '<br><b>Spectators:</b><br>' + spectatorArr.map(s => escapeHTML(s.username)).join('<br>');
@@ -172,11 +229,11 @@ function drawStickmanParts(ctx, ragdoll, name, headColor='#ffe0b2', hp=100) {
     ctx.fill();
     ctx.stroke();
   }
-    ctx.restore();
-  }
+  ctx.restore();
+}
 
 function drawGame() {
-    updateLobbyOverlay();
+  updateLobbyOverlay();
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   for (let p of bloodParticles) {
     ctx.save();
