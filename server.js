@@ -9,6 +9,10 @@ const io = new Server(server);
 
 app.use(express.static('public'));
 
+app.get('/twitch', (req, res) => {
+  res.sendFile(__dirname + '/public/twitch.html');
+});
+
 let players = {};
 let spectators = {};
 let minPlayers = 2;
@@ -134,6 +138,7 @@ function broadcastPlayerList() {
     const spectatorList = Object.values(spectators).map(p => ({
         id: p.id,
         username: p.username,
+        overlay: !!p.overlay
     }));
     io.emit('player_list', { players: playerList, spectators: spectatorList });
 }
@@ -196,7 +201,10 @@ function resetToLobby() {
     }
     roundStartTime = null;
     for (let id in spectators) {
-        players[id] = spectators[id];
+        // Only move spectators that are not overlays
+        if (!spectators[id].overlay) {
+            players[id] = spectators[id];
+        }
     }
     spectators = {};
     gameState = 'waiting';
@@ -307,21 +315,35 @@ Matter.Events.on(engine, 'collisionStart', event => {
 });
 
 io.on('connection', (socket) => {
-    socket.on('join', (username) => {
+    socket.on('join', (joinArg) => {
+        let username, asSpectator = false;
+        if (typeof joinArg === 'object' && joinArg !== null) {
+            username = joinArg.username;
+            asSpectator = !!joinArg.spectator;
+        } else {
+            username = joinArg;
+    }
         if (!username || typeof username !== 'string') return;
         username = username.substring(0, 16);
 
-        if (gameState === 'waiting') {
+        if (asSpectator) {
+            spectators[socket.id] = {
+                id: socket.id,
+                username,
+                overlay: true
+            };
+        } else if (gameState === 'waiting') {
             players[socket.id] = {
                 id: socket.id,
                 username,
-                };
+            };
         } else {
             spectators[socket.id] = {
                 id: socket.id,
                 username,
+                overlay: true
             };
-    }
+        }
         broadcastPlayerList();
         io.emit('can_start', Object.keys(players).length >= minPlayers);
 
@@ -431,10 +453,10 @@ setInterval(() => {
                             ragdoll.parts.head,
                             ragdoll.parts.head.angularVelocity + spinImpulse
                         );
-    }
-                }
             }
         }
+    }
+    }
 
         Matter.Engine.update(engine, 1000 / 60);
 
@@ -451,7 +473,6 @@ setInterval(() => {
                     x: body.position.x + (7) * Math.cos(angle) - 36 * Math.sin(angle),
                     y: body.position.y + (7) * Math.sin(angle) + 36 * Math.cos(angle)
                 };
-                // Calculate force for each nut toward its local target
                 const applyPull = (ball, target) => {
                     const strength = 0.003;
                     const dx = target.x - ball.position.x;

@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>RagdollWS - Twitch Overlay</title>
+  <style>
+    html, body {
+      margin: 0; padding: 0;
+      width: 100vw; height: 100vh;
+      background: transparent !important;
+      overflow: hidden;
+    }
+    #twitch-canvas {
+      display: block;
+      position: absolute;
+      left: 0; top: 0;
+      width: 1280px; height: 720px;
+      background: transparent !important;
+      pointer-events: none;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="twitch-canvas" width="1280" height="720" style="background: transparent;"></canvas>
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="twitch.js"></script>
+</body>
+</html>
