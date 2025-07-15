@@ -560,4 +560,4 @@ setInterval(() => {
     }
 }, 1000 / 30);
 
-server.listen(3000, () => console.log('Game server running on http://localhost:3000/'));
+server.listen(3001, () => console.log('Game server running on http://localhost:3001/'));
