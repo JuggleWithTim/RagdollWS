@@ -82,7 +82,7 @@ document.getElementById('join-btn').onclick = () => {
 document.getElementById('twitch-login-btn').onclick = () => {
   fetch('./twitch_client_id').then(r => r.json()).then(cfg => {
     const clientId = cfg.client_id;
-    const redirectUri = window.location.origin + '/';
+    const redirectUri = window.location.origin + window.location.pathname;
     const scope = 'user:read:email';
     const state = Math.random().toString(36).slice(2);
     localStorage.setItem('twitch_oauth_state', state);
