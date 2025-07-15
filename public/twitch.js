@@ -1,4 +1,6 @@
-const socket = io();
+const socket = io({
+  path: window.location.pathname.replace(/[^/]+$/, '') + 'socket.io'
+});
 const canvas = document.getElementById('twitch-canvas');
 const ctx = canvas.getContext('2d');
 
