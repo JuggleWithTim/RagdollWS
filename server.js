@@ -19,7 +19,7 @@ app.get('/twitch', (req, res) => {
   res.sendFile(__dirname + '/public/twitch.html');
 });
 
-app.get('/twitch_client_id', (req, res) => {
+app.get('./twitch_client_id', (req, res) => {
   console.log('[DEBUG] /twitch_client_id requested, sending client_id:', TWITCH_CLIENT_ID);
   res.json({ client_id: TWITCH_CLIENT_ID });
 });
