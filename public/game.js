@@ -80,7 +80,7 @@ document.getElementById('join-btn').onclick = () => {
 };
 
 document.getElementById('twitch-login-btn').onclick = () => {
-  fetch('/twitch_client_id').then(r => r.json()).then(cfg => {
+  fetch('./twitch_client_id').then(r => r.json()).then(cfg => {
     const clientId = cfg.client_id;
     const redirectUri = window.location.origin + '/';
     const scope = 'user:read:email';
