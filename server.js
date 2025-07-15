@@ -9,7 +9,7 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
 
-const USE_TWITCH_LOGIN = false; // Set false for manual login, true for Twitch OAuth enforced
+const USE_TWITCH_LOGIN = true; // Set false for manual login, true for Twitch OAuth enforced
 const TWITCH_CLIENT_ID = process.env.TWITCH_CLIENT_ID;
 const TWITCH_CLIENT_SECRET = process.env.TWITCH_CLIENT_SECRET;
 
@@ -20,6 +20,7 @@ app.get('/twitch', (req, res) => {
 });
 
 app.get('/twitch_client_id', (req, res) => {
+  console.log('[DEBUG] /twitch_client_id requested, sending client_id:', TWITCH_CLIENT_ID);
   res.json({ client_id: TWITCH_CLIENT_ID });
 });
 
@@ -150,6 +151,7 @@ function broadcastPlayerList() {
         username: p.username,
         overlay: !!p.overlay
     }));
+    console.log('[DEBUG] Broadcasting player list:', { players: playerList, spectators: spectatorList });
     io.emit('player_list', { players: playerList, spectators: spectatorList });
 }
 
@@ -325,7 +327,9 @@ Matter.Events.on(engine, 'collisionStart', event => {
 });
 
 io.on('connection', (socket) => {
+    console.log(`[DEBUG] New socket connection: ${socket.id}`);
     socket.on('join', async (joinArg) => {
+        console.log(`[DEBUG] 'join' event received from ${socket.id}:`, joinArg);
         let username, asSpectator = false, twitchToken = null;
 
         if (typeof joinArg === 'object' && joinArg !== null) {
@@ -338,28 +342,36 @@ io.on('connection', (socket) => {
 
         if (USE_TWITCH_LOGIN) {
             if (!twitchToken) {
+                console.log(`[AUTH ERROR] Missing twitchToken for socket ${socket.id}`);
                 socket.emit('auth_error', 'Missing Twitch login');
                 return;
             }
             try {
+                console.log(`[DEBUG] Fetching Twitch user for token ${twitchToken.slice(0, 5)}...`);
                 const userResp = await axios.get('https://api.twitch.tv/helix/users', {
                     headers: {
                         'Authorization': 'Bearer ' + twitchToken,
                         'Client-Id': TWITCH_CLIENT_ID,
                     }
                 });
+                console.log(`[DEBUG] Twitch response data for socket ${socket.id}:`, userResp.data);
                 if (userResp.data.data && userResp.data.data.length > 0) {
                     username = userResp.data.data[0].display_name.substring(0, 16);
                 } else {
+                    console.log(`[AUTH ERROR] No user info returned from Twitch for socket ${socket.id}`);
                     socket.emit('auth_error', 'Twitch authentication failed (user info)');
                     return;
                 }
             } catch (e) {
+                console.log(`[AUTH ERROR] Twitch authentication failed for socket ${socket.id}`, e);
                 socket.emit('auth_error', 'Twitch authentication failed');
                 return;
             }
         } else {
-            if (!username || typeof username !== 'string') return;
+            if (!username || typeof username !== 'string') {
+                console.log(`[AUTH ERROR] Username missing or not a string (socket ${socket.id}):`, username);
+                return;
+        }
             username = username.substring(0, 16);
         }
 
@@ -369,20 +381,28 @@ io.on('connection', (socket) => {
                 username,
                 overlay: true
             };
+            console.log(`[DEBUG] Joined as spectator: ${username} (${socket.id})`);
         } else if (gameState === 'waiting') {
             players[socket.id] = {
                 id: socket.id,
                 username,
             };
+            console.log(`[DEBUG] Joined as player: ${username} (${socket.id})`);
         } else {
             spectators[socket.id] = {
                 id: socket.id,
                 username,
                 overlay: true
             };
+            console.log(`[DEBUG] Joined as (late) spectator: ${username} (${socket.id})`);
         }
         broadcastPlayerList();
         io.emit('can_start', Object.keys(players).length >= minPlayers);
+
+        // Log state after join
+        console.log(`[DEBUG] Current player count: ${Object.keys(players).length}`);
+        console.log(`[DEBUG] Players:`, Object.values(players));
+        console.log(`[DEBUG] Spectators:`, Object.values(spectators));
 
         socket.emit('game_state', {
             state: gameState,
@@ -445,6 +465,7 @@ io.on('connection', (socket) => {
     });
 
     socket.on('disconnect', () => {
+        console.log(`[DEBUG] Socket disconnect: ${socket.id}`);
         delete players[socket.id];
         delete spectators[socket.id];
         delete stickmen[socket.id];
@@ -454,6 +475,7 @@ io.on('connection', (socket) => {
         io.emit('can_start', Object.keys(players).length >= minPlayers);
         checkForWinner();
         if (gameState !== 'waiting' && Object.keys(players).length < minPlayers) {
+            console.log('[DEBUG] Not enough players left, resetting to lobby...');
             resetToLobby();
         }
     });

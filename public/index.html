@@ -14,7 +14,7 @@
   <script src="/socket.io/socket.io.js"></script>
   <script>
   // Conditionally show Twitch or normal join
-  const USE_TWITCH_LOGIN = false; // Keep in sync with server.js!
+  //const USE_TWITCH_LOGIN = true; // Keep in sync with server.js!
   window.addEventListener('DOMContentLoaded', () => {
     if (USE_TWITCH_LOGIN) {
       document.getElementById('twitch-login-btn').style.display = '';
