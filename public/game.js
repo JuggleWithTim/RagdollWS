@@ -326,18 +326,20 @@ window.addEventListener('keydown', (e) => {
       socket.emit('start_game');
     }
   }
-  if (e.key === 'w') { if (!controls.up) {controls.up = true; changed = true;} }
-  if (e.key === 'a') { if (!controls.left) {controls.left = true; changed = true;} }
-  if (e.key === 's') { if (!controls.down) {controls.down = true; changed = true;} }
-  if (e.key === 'd') { if (!controls.right) {controls.right = true; changed = true;} }
+  const key = e.key.toLowerCase();
+  if (key === 'w' || e.key === 'ArrowUp') { if (!controls.up) {controls.up = true; changed = true;} }
+  if (key === 'a' || e.key === 'ArrowLeft') { if (!controls.left) {controls.left = true; changed = true;} }
+  if (key === 's' || e.key === 'ArrowDown') { if (!controls.down) {controls.down = true; changed = true;} }
+  if (key === 'd' || e.key === 'ArrowRight') { if (!controls.right) {controls.right = true; changed = true;} }
   if (changed) sendControls();
 });
 window.addEventListener('keyup', (e) => {
   let changed = false;
-  if (e.key === 'w') { if (controls.up) {controls.up = false; changed = true;} }
-  if (e.key === 'a') { if (controls.left) {controls.left = false; changed = true;} }
-  if (e.key === 's') { if (controls.down) {controls.down = false; changed = true;} }
-  if (e.key === 'd') { if (controls.right) {controls.right = false; changed = true;} }
+  const key = e.key.toLowerCase();
+  if (key === 'w' || e.key === 'ArrowUp') { if (controls.up) {controls.up = false; changed = true;} }
+  if (key === 'a' || e.key === 'ArrowLeft') { if (controls.left) {controls.left = false; changed = true;} }
+  if (key === 's' || e.key === 'ArrowDown') { if (controls.down) {controls.down = false; changed = true;} }
+  if (key === 'd' || e.key === 'ArrowRight') { if (controls.right) {controls.right = false; changed = true;} }
   if (changed) sendControls();
 });
 
