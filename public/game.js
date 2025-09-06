@@ -151,10 +151,34 @@ function drawStickmanParts(ctx, ragdoll, name, headColor='#ffe0b2', hp=100) {
   ctx.strokeStyle = "#444";
   ctx.lineWidth = 6;
   ctx.stroke();
+  // Draw health bar
+  const barWidth = 50;
+  const barHeight = 8;
+  const barX = h.x - barWidth / 2;
+  const barY = h.y - 35;
+  const hpPercentage = Math.max(0, Math.min(1, hp / 1000));
+
+  // Background bar
+  ctx.fillStyle = "#333";
+  ctx.fillRect(barX, barY, barWidth, barHeight);
+
+  // Health fill
+  const fillWidth = barWidth * hpPercentage;
+  const r = Math.floor(255 * (1 - hpPercentage));
+  const g = Math.floor(255 * hpPercentage);
+  ctx.fillStyle = `rgb(${r}, ${g}, 0)`;
+  ctx.fillRect(barX, barY, fillWidth, barHeight);
+
+  // Bar border
+  ctx.strokeStyle = "#000";
+  ctx.lineWidth = 1;
+  ctx.strokeRect(barX, barY, barWidth, barHeight);
+
+  // Player name
   ctx.font = '14px sans-serif';
   ctx.fillStyle = "#222";
   ctx.textAlign = 'center';
-  ctx.fillText(`${name} (${hp})`, h.x, h.y - 30);
+  ctx.fillText(name, h.x, h.y - 45);
 
   if (ragdoll.leftNut) {
     ctx.beginPath();
